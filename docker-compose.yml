@@ -1,0 +1,17 @@
+services:
+  php:
+    image: php-test
+    build:
+      context: '.'
+      dockerfile: php.Dockerfile
+      args:
+          - PHP_VERSION=${PHP_VERSION:-8.3}
+    depends_on:
+      - redis
+    environment:
+      REDIS_HOST: redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

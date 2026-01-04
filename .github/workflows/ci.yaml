@@ -1,0 +1,29 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request: 
+
+jobs:
+  docker-build-and-run:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ["8.3", "8.4", "8.5"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build and Start Services
+        # Pass the matrix value as an environment variable to Docker Compose
+        run: PHP_VERSION=${{ matrix.php-version }} docker compose up redis -d --build
+
+      - name: Unit Tests
+        run: |
+          make run-tests
+
+      - name: Stop Services
+        if: always()
+        run: PHP_VERSION=${{ matrix.php-version }} docker compose down

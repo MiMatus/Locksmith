@@ -1,0 +1,25 @@
+{
+    "name": "mimatus/locksmith",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.3"
+    },
+    "suggest": {
+        "ext-redis": "To use this library with the PHP Redis extension."
+    },
+    "autoload": {
+        "psr-4": {
+            "MiMatus\\Locksmith\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MiMatus\\Locksmith\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "ext-redis": "*",
+        "phpunit/phpunit": "^12.5"
+    }
+}
