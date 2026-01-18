@@ -93,6 +93,46 @@ $locked(function (Closure $suspension): void {
 // Lock is released after callback execution
 ```
 
+### Distributed semaphore
+```php
+$semaphores = new SemaphoreCollection([
+    new RedisSemaphore(
+        redisClient: $redis1,
+        maxConcurrentLocks: 3,
+    ),
+    new RedisSemaphore(
+        redisClient: $redis2,
+        maxConcurrentLocks: 3,
+    ),
+    new RedisSemaphore(
+        redisClient: $redis3,
+        maxConcurrentLocks: 3,
+    ),
+]);
+
+$locksmith = new Locksmith(
+    semaphore: new DistributedSemaphore(
+        semaphores: $semaphores,
+        quorum: 2,
+    ),
+);
+$resource = new Resource(
+    namespace: 'test-resource', // Namespace/identifier for resource
+    version: 1, // Optional resouce version
+);
+$locked = $locksmith->locked(
+    $resource, 
+    lockTTLNs: 1_000_000_000, // How long should be resource locked
+    maxLockWaitNs: 500_000_000, // How long to wait for lock acquisition - error if exceeded
+    minSuspensionDelayNs: 10_000 // Minimum delay between retries when lock acquisition fails
+);
+$locked(function (Closure $suspension): void {
+    // Critical section - code executed under lock
+
+    $suspension(); // Optional - cooperative suspension point to allow other lock acquisition attempts or allow lock TTL checks for long running processes
+});
+// Lock is released after callback execution
+```
 ## Development
 
 ### Commits
