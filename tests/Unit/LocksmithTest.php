@@ -8,8 +8,8 @@ use Closure;
 use Exception;
 use MiMatus\Locksmith\Locksmith;
 use MiMatus\Locksmith\Resource;
-use MiMatus\Locksmith\Semaphore;
 use MiMatus\Locksmith\Semaphore\TimeProvider;
+use MiMatus\Locksmith\SemaphoreInterface;
 use Override;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -18,7 +18,7 @@ use RuntimeException;
 
 class LocksmithTest extends TestCase
 {
-    private Semaphore&MockObject $semaphore;
+    private SemaphoreInterface&MockObject $semaphore;
     private TimeProvider&MockObject $timeProvider;
     private Engine&MockObject $randomEngine;
 
@@ -28,7 +28,7 @@ class LocksmithTest extends TestCase
     #[Override]
     protected function setUp(): void
     {
-        $this->semaphore = $this->createMock(Semaphore::class);
+        $this->semaphore = $this->createMock(SemaphoreInterface::class);
         $this->timeProvider = $this->createMock(TimeProvider::class);
         $this->randomEngine = $this->createMock(Engine::class);
     }
@@ -49,6 +49,7 @@ class LocksmithTest extends TestCase
             ->willReturnCallback(static function (
                 Resource $resource,
                 #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
                 Closure $suspension,
             ) use (&$currentTime): void {
                 $suspension();
@@ -67,7 +68,8 @@ class LocksmithTest extends TestCase
         );
 
         $locked = $locksmith->locked(
-            resource: new Resource(namespace: 'test-resource', version: 1, ttlNanoseconds: 1_000_000_000),
+            resource: new Resource(namespace: 'test-resource', version: 1),
+            lockTTLNs: 1_000_000_000,
             maxLockWaitNs: 500_000_000,
             minSuspensionDelayNs: 10_000,
         );
@@ -94,6 +96,7 @@ class LocksmithTest extends TestCase
             ->willReturnCallback(static function (
                 Resource $resource,
                 #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
                 Closure $suspension,
             ) use (&$currentTime): void {
                 throw new RuntimeException('error');
@@ -110,7 +113,8 @@ class LocksmithTest extends TestCase
         );
 
         $locked = $locksmith->locked(
-            resource: new Resource(namespace: 'test-resource', version: 1, ttlNanoseconds: 1_000_000_000),
+            resource: new Resource(namespace: 'test-resource', version: 1),
+            lockTTLNs: 1_000_000_000,
             maxLockWaitNs: 500_000_000,
             minSuspensionDelayNs: 10_000,
         );
@@ -123,7 +127,7 @@ class LocksmithTest extends TestCase
 
     public function testLostDuringExecution(): void
     {
-        $resource = new Resource(namespace: 'test-resource', version: 1, ttlNanoseconds: 1_000_000_000);
+        $resource = new Resource(namespace: 'test-resource', version: 1);
 
         $currentTime = 0;
         $this->timeProvider
@@ -139,6 +143,7 @@ class LocksmithTest extends TestCase
             ->willReturnCallback(static function (
                 Resource $resource,
                 #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
                 Closure $suspension,
             ) use (&$currentTime): void {
                 // Lock acquired immediately
@@ -161,7 +166,12 @@ class LocksmithTest extends TestCase
             randomEngine: $this->randomEngine,
         );
 
-        $locked = $locksmith->locked(resource: $resource, maxLockWaitNs: 500_000_000, minSuspensionDelayNs: 10_000);
+        $locked = $locksmith->locked(
+            resource: $resource,
+            lockTTLNs: 1_000_000_000,
+            maxLockWaitNs: 500_000_000,
+            minSuspensionDelayNs: 10_000,
+        );
 
         $this->expectExceptionObject(new RuntimeException('Lock has been lost during process'));
         $locked(static function (Closure $suspension): void {
@@ -171,7 +181,7 @@ class LocksmithTest extends TestCase
 
     public function testUnableToUnlock(): void
     {
-        $resource = new Resource(namespace: 'test-resource', version: 1, ttlNanoseconds: 1_000_000_000);
+        $resource = new Resource(namespace: 'test-resource', version: 1);
 
         $currentTime = 0;
         $this->timeProvider
@@ -187,6 +197,7 @@ class LocksmithTest extends TestCase
             ->willReturnCallback(static function (
                 Resource $resource,
                 #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
                 Closure $suspension,
             ) use (&$currentTime): void {
                 // Lock acquired immediately
@@ -218,7 +229,12 @@ class LocksmithTest extends TestCase
             randomEngine: $this->randomEngine,
         );
 
-        $locked = $locksmith->locked(resource: $resource, maxLockWaitNs: 500_000_000, minSuspensionDelayNs: 10_000);
+        $locked = $locksmith->locked(
+            resource: $resource,
+            lockTTLNs: 1_000_000_000,
+            maxLockWaitNs: 500_000_000,
+            minSuspensionDelayNs: 10_000,
+        );
 
         $this->expectExceptionObject(new RuntimeException('error during unlock'));
         $locked(static function (Closure $suspension): void {
@@ -228,7 +244,7 @@ class LocksmithTest extends TestCase
 
     public function testLocked(): void
     {
-        $resource = new Resource(namespace: 'test-resource', version: 1, ttlNanoseconds: 1_000_000_000);
+        $resource = new Resource(namespace: 'test-resource', version: 1);
 
         $currentTime = 0;
         $this->timeProvider
@@ -244,6 +260,7 @@ class LocksmithTest extends TestCase
             ->willReturnCallback(static function (
                 Resource $resource,
                 #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
                 Closure $suspension,
             ) use (&$currentTime): void {
                 // Lock acquired immediately
@@ -275,7 +292,12 @@ class LocksmithTest extends TestCase
             randomEngine: $this->randomEngine,
         );
 
-        $locked = $locksmith->locked(resource: $resource, maxLockWaitNs: 500_000_000, minSuspensionDelayNs: 10_000);
+        $locked = $locksmith->locked(
+            resource: $resource,
+            lockTTLNs: 1_000_000_000,
+            maxLockWaitNs: 500_000_000,
+            minSuspensionDelayNs: 10_000,
+        );
 
         $called = false;
         $locked(static function (Closure $suspension) use (&$called): void {

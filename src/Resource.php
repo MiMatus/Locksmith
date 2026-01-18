@@ -4,14 +4,22 @@ declare(strict_types=1);
 
 namespace MiMatus\Locksmith;
 
-readonly class Resource
+readonly class Resource implements ResourceInterface
 {
-    /**
-     * @param non-negative-int $ttlNanoseconds
-     */
     public function __construct(
-        public int $ttlNanoseconds,
         public string $namespace = '',
         public int $version = 1,
     ) {}
+
+    #[\Override]
+    public function getNamespace(): string
+    {
+        return $this->namespace;
+    }
+
+    #[\Override]
+    public function getVersion(): int
+    {
+        return $this->version;
+    }
 }

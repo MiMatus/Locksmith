@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace MiMatus\Locksmith\Semaphore;
 
 use Closure;
-use MiMatus\Locksmith\Resource;
-use MiMatus\Locksmith\Semaphore;
+use MiMatus\Locksmith\ResourceInterface;
+use MiMatus\Locksmith\SemaphoreInterface;
 use RedisException;
 use RuntimeException;
 
-readonly class RedisSemaphore implements Semaphore
+readonly class RedisSemaphore implements SemaphoreInterface
 {
     /**
      * @param positive-int $maxConcurrentLocks
@@ -18,7 +18,6 @@ readonly class RedisSemaphore implements Semaphore
     public function __construct(
         public \Redis $redisClient,
         private int $maxConcurrentLocks = 1,
-        private string $keyPrefix = '',
     ) {}
 
     /**
@@ -26,8 +25,12 @@ readonly class RedisSemaphore implements Semaphore
      * @throws RuntimeException
      */
     #[\Override]
-    public function lock(Resource $resource, #[\SensitiveParameter] string $token, Closure $suspension): void
-    {
+    public function lock(
+        ResourceInterface $resource,
+        #[\SensitiveParameter] string $token,
+        int $lockTTLNs,
+        Closure $suspension,
+    ): void {
         $luaScript = <<<LUA
             local field_count = redis.call('HLEN', KEYS[1])
             local locked_version = redis.call('HGET', KEYS[1], 'version')
@@ -83,7 +86,7 @@ readonly class RedisSemaphore implements Semaphore
             end
         LUA;
 
-        $milisecondsTTL = (int) ($resource->ttlNanoseconds / 1_000_000);
+        $milisecondsTTL = (int) ($lockTTLNs / 1_000_000);
 
         do {
             try {
@@ -91,10 +94,10 @@ readonly class RedisSemaphore implements Semaphore
                 $result = $this->redisClient->eval(
                     $luaScript,
                     [
-                        $this->keyPrefix . $resource->namespace,
+                        $resource->getNamespace(),
                         $token,
                         $milisecondsTTL,
-                        $resource->version,
+                        $resource->getVersion(),
                         $this->maxConcurrentLocks,
                     ],
                     1,
@@ -129,7 +132,7 @@ readonly class RedisSemaphore implements Semaphore
      * @throws RuntimeException
      */
     #[\Override]
-    public function unlock(Resource $resource, #[\SensitiveParameter] string $token): void
+    public function unlock(ResourceInterface $resource, #[\SensitiveParameter] string $token): void
     {
         $luaScript = <<<LUA
             local namespace = KEYS[1]
@@ -156,7 +159,7 @@ readonly class RedisSemaphore implements Semaphore
 
         try {
             /** @var bool|int */
-            $result = $this->redisClient->eval($luaScript, [$this->keyPrefix . $resource->namespace, $token], 1);
+            $result = $this->redisClient->eval($luaScript, [$resource->getNamespace(), $token], 1);
             if ($result === false) {
                 throw new RuntimeException('Redis Error: ' . ($this->redisClient->getLastError() ?? 'Unknown error'));
             }
@@ -169,11 +172,11 @@ readonly class RedisSemaphore implements Semaphore
      * @throws RuntimeException
      */
     #[\Override]
-    public function isLocked(Resource $resource): bool
+    public function isLocked(ResourceInterface $resource): bool
     {
         try {
             /** @var bool|int */
-            $exists = $this->redisClient->exists($resource->namespace);
+            $exists = $this->redisClient->exists($resource->getNamespace());
         } catch (RedisException $e) {
             throw new RuntimeException(message: 'Redis Error: ' . $e->getMessage(), previous: $e);
         }

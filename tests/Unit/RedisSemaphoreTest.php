@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace MiMatus\Locksmith\Tests\Unit;
 
 use Exception;
-use MiMatus\Locksmith\Semaphore;
 use MiMatus\Locksmith\Semaphore\RedisSemaphore;
 use MiMatus\Locksmith\Semaphore\TimeProvider;
+use MiMatus\Locksmith\SemaphoreInterface;
 use Override;
 use Redis;
 
@@ -39,7 +39,7 @@ class RedisSemaphoreTest extends SemaphoreTestCase
         parent::advanceTime($nanoseconds);
     }
 
-    protected function createSemaphore(TimeProvider $timeProvider, $maxConcurrentLocks = 1): Semaphore
+    protected function createSemaphore(TimeProvider $timeProvider, $maxConcurrentLocks = 1): SemaphoreInterface
     {
         return new RedisSemaphore(redisClient: $this->redis, maxConcurrentLocks: $maxConcurrentLocks);
     }

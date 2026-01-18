@@ -15,7 +15,7 @@ use Throwable;
 readonly class Locksmith
 {
     public function __construct(
-        private Semaphore $semaphore,
+        private SemaphoreInterface $semaphore,
         private TimeProvider $timeProvider = new TimeProvider(),
         private Engine $randomEngine = new Xoshiro256StarStar(),
     ) {}
@@ -24,17 +24,22 @@ readonly class Locksmith
      * @template T
      * @param non-negative-int $maxLockWaitNs
      * @param non-negative-int $minSuspensionDelayNs
+     * @param non-negative-int $lockTTLNs
      * @throws Throwable
      * @return Closure(Closure(): void): T
      */
-    public function locked(Resource $resource, int $maxLockWaitNs, int $minSuspensionDelayNs): Closure
-    {
-        return function (Closure $callback) use ($resource, $maxLockWaitNs, $minSuspensionDelayNs): mixed {
+    public function locked(
+        ResourceInterface $resource,
+        int $lockTTLNs,
+        int $maxLockWaitNs,
+        int $minSuspensionDelayNs,
+    ): Closure {
+        return function (Closure $callback) use ($resource, $lockTTLNs, $maxLockWaitNs, $minSuspensionDelayNs): mixed {
             $token = bin2hex($this->randomEngine->generate());
 
             $this->getResultUnderTTL(
-                new Fiber(function () use ($token, $resource): void {
-                    $this->semaphore->lock($resource, $token, Fiber::suspend(...));
+                new Fiber(function () use ($token, $resource, $lockTTLNs): void {
+                    $this->semaphore->lock($resource, $token, $lockTTLNs, Fiber::suspend(...));
                 }),
                 $maxLockWaitNs,
                 $minSuspensionDelayNs,
@@ -50,7 +55,7 @@ readonly class Locksmith
 
                         return $callback(Fiber::suspend(...));
                     }),
-                    $resource->ttlNanoseconds,
+                    $lockTTLNs,
                     $minSuspensionDelayNs,
                 );
             } finally {

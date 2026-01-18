@@ -41,11 +41,11 @@ $locksmith = new Locksmith(
 $resource = new Resource(
     namespace: 'test-resource', // Namespace/identifier for resource
     version: 1, // Optional resource version
-    ttlNanoseconds: 1_000_000_000, //How long should be resource locked
 );
 
 $locked = $locksmith->locked(
     $resource, 
+    lockTTLNs: 1_000_000_000, // How long should be resource locked
     maxLockWaitNs: 500_000_000, // How long to wait for lock acquisition - error if exceeded
     minSuspensionDelayNs: 10_000 // Minimum delay between retries when lock acquisition fails
 );
@@ -76,11 +76,11 @@ $locksmith = new Locksmith(semaphore: $semaphore);
 $resource = new Resource(
     namespace: 'test-resource', // Namespace/identifier for resource
     version: 1, // Optional resouce version
-    ttlNanoseconds: 1_000_000_000, //How long should be resource locked
 );
 
 $locked = $locksmith->locked(
     $resource, 
+    lockTTLNs: 1_000_000_000, // How long should be resource locked
     maxLockWaitNs: 500_000_000, // How long to wait for lock acquisition - error if exceeded
     minSuspensionDelayNs: 10_000 // Minimum delay between retries when lock acquisition fails
 );

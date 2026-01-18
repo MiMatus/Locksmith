@@ -6,11 +6,11 @@ namespace MiMatus\Locksmith\Semaphore;
 
 use Closure;
 use MiMatus\Locksmith\Lock;
-use MiMatus\Locksmith\Resource;
-use MiMatus\Locksmith\Semaphore;
+use MiMatus\Locksmith\ResourceInterface;
+use MiMatus\Locksmith\SemaphoreInterface;
 use RuntimeException;
 
-class InMemorySemaphore implements Semaphore
+class InMemorySemaphore implements SemaphoreInterface
 {
     /**
      * @var array<string, array{version: int, expirations: array<string|int, float|int>}>
@@ -30,18 +30,22 @@ class InMemorySemaphore implements Semaphore
      * @throws RuntimeException
      */
     #[\Override]
-    public function lock(Resource $resource, #[\SensitiveParameter] string $token, Closure $suspension): void
-    {
+    public function lock(
+        ResourceInterface $resource,
+        #[\SensitiveParameter] string $token,
+        int $lockTTLNs,
+        Closure $suspension,
+    ): void {
         if (
-            isset($this->locks[$resource->namespace]['version'])
-            && $this->locks[$resource->namespace]['version'] > $resource->version
+            isset($this->locks[$resource->getNamespace()]['version'])
+            && $this->locks[$resource->getNamespace()]['version'] > $resource->getVersion()
         ) {
             throw new RuntimeException('Lock version mismatch');
         }
 
         do {
             $currentTime = $this->timeProvider->getCurrentTimeNanoseconds();
-            $storedResource = $this->locks[$resource->namespace] ?? null;
+            $storedResource = $this->locks[$resource->getNamespace()] ?? null;
             if ($storedResource === null) {
                 break;
             }
@@ -55,7 +59,7 @@ class InMemorySemaphore implements Semaphore
                 }
             }
 
-            $higherVersion = $resource->version > $storedResource['version'];
+            $higherVersion = $resource->getVersion() > $storedResource['version'];
             $maxLocksReached = $activeLocks >= $this->maxConcurrentLocks;
 
             if ($maxLocksReached || $higherVersion) {
@@ -65,21 +69,21 @@ class InMemorySemaphore implements Semaphore
             }
         } while (true);
 
-        $resourceExpiration = $currentTime + $resource->ttlNanoseconds;
-        $this->locks[$resource->namespace]['expirations'][$token] = $resourceExpiration;
-        $this->locks[$resource->namespace]['version'] = $resource->version;
+        $resourceExpiration = $currentTime + $lockTTLNs;
+        $this->locks[$resource->getNamespace()]['expirations'][$token] = $resourceExpiration;
+        $this->locks[$resource->getNamespace()]['version'] = $resource->getVersion();
     }
 
     #[\Override]
-    public function unlock(Resource $resource, #[\SensitiveParameter] string $token): void
+    public function unlock(ResourceInterface $resource, #[\SensitiveParameter] string $token): void
     {
-        if (!isset($this->locks[$resource->namespace])) {
+        if (!isset($this->locks[$resource->getNamespace()])) {
             return;
         }
 
-        unset($this->locks[$resource->namespace]['expirations'][$token]);
-        if ($this->locks[$resource->namespace]['expirations'] === []) {
-            unset($this->locks[$resource->namespace]);
+        unset($this->locks[$resource->getNamespace()]['expirations'][$token]);
+        if ($this->locks[$resource->getNamespace()]['expirations'] === []) {
+            unset($this->locks[$resource->getNamespace()]);
         }
     }
 
@@ -87,13 +91,13 @@ class InMemorySemaphore implements Semaphore
      * @throws RuntimeException
      */
     #[\Override]
-    public function isLocked(Resource $resource): bool
+    public function isLocked(ResourceInterface $resource): bool
     {
-        if (!isset($this->locks[$resource->namespace])) {
+        if (!isset($this->locks[$resource->getNamespace()])) {
             return false;
         }
 
-        foreach ($this->locks[$resource->namespace]['expirations'] as $token => $expiration) {
+        foreach ($this->locks[$resource->getNamespace()]['expirations'] as $token => $expiration) {
             if ($expiration > $this->timeProvider->getCurrentTimeNanoseconds()) {
                 return true;
             }
