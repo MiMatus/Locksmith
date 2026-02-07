@@ -78,7 +78,7 @@ class DistributedSemaphoreTest extends TestCase
 
         $distributedSemaphore->lock(
             resource: new Resource(namespace: 'test-resource'),
-            token: 'test-token',
+            token: 'test-token', // @mago-ignore lint:no-literal-password
             lockTTLNs: 1_000_000_000, // 1 second
             suspension: static function (): void {},
         );
@@ -145,7 +145,7 @@ class DistributedSemaphoreTest extends TestCase
 
         $distributedSemaphore->lock(
             resource: new Resource(namespace: 'test-resource'),
-            token: 'test-token',
+            token: 'test-token', // @mago-ignore lint:no-literal-password
             lockTTLNs: 1_000_000_000, // 1 second
             suspension: static function (): void {},
         );
@@ -198,7 +198,7 @@ class DistributedSemaphoreTest extends TestCase
 
         $distributedSemaphore->lock(
             resource: new Resource(namespace: 'test-resource'),
-            token: 'test-token',
+            token: 'test-token', // @mago-ignore lint:no-literal-password
             lockTTLNs: 1_000_000_000, // 1 second
             suspension: static function (): void {},
         );
@@ -240,7 +240,7 @@ class DistributedSemaphoreTest extends TestCase
                 }
             });
 
-        $distributedSemaphore->unlock(resource: new Resource(namespace: 'test-resource'), token: 'test-token');
+        $distributedSemaphore->unlock(resource: new Resource(namespace: 'test-resource'), token: 'test-token'); // @mago-ignore lint:no-literal-password
 
         self::assertEquals(3, $unlocksPerformed, 'Exactly three semaphores should have been unlocked');
     }
@@ -281,7 +281,7 @@ class DistributedSemaphoreTest extends TestCase
 
         $this->expectExceptionObject(new GroupedException('Failed to release lock quorum', []));
 
-        $distributedSemaphore->unlock(resource: new Resource(namespace: 'test-resource'), token: 'test-token');
+        $distributedSemaphore->unlock(resource: new Resource(namespace: 'test-resource'), token: 'test-token'); // @mago-ignore lint:no-literal-password
     }
 
     public function testIsLockedOnQuorum(): void

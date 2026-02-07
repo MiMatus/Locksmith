@@ -7,6 +7,7 @@ namespace MiMatus\Locksmith\Tests\Unit;
 use MiMatus\Locksmith\Semaphore\InMemorySemaphore;
 use MiMatus\Locksmith\Semaphore\TimeProvider;
 use MiMatus\Locksmith\SemaphoreInterface;
+use MiMatus\Locksmith\Tests\SemaphoreTestCase;
 
 class InMemorySemaphoreTest extends SemaphoreTestCase
 {

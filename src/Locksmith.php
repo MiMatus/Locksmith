@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace MiMatus\Locksmith;
 
 use Closure;
-use Fiber;
 use MiMatus\Locksmith\Semaphore\TimeProvider;
 use Random\Engine;
 use Random\Engine\Xoshiro256StarStar;
+use Revolt\EventLoop;
 use RuntimeException;
 use Throwable;
 
@@ -37,10 +37,24 @@ readonly class Locksmith
         return function (Closure $callback) use ($resource, $lockTTLNs, $maxLockWaitNs, $minSuspensionDelayNs): mixed {
             $token = bin2hex($this->randomEngine->generate());
 
+            $startTimeNs = $this->timeProvider->getCurrentTimeNanoseconds();
+
+            $suspender = function () use ($startTimeNs, $lockTTLNs, $minSuspensionDelayNs) {
+                $remainingLockTTLNs = (int) (
+                    $lockTTLNs
+                    - ($this->timeProvider->getCurrentTimeNanoseconds() - $startTimeNs)
+                );
+                if ($remainingLockTTLNs <= 0) {
+                    throw new RuntimeException('Unable to get result under TTL');
+                }
+                /** @var non-negative-int $remainingLockTTLNs */
+
+                $this->getResultUnderTTL(static fn() => null, $remainingLockTTLNs, $minSuspensionDelayNs);
+            };
             $this->getResultUnderTTL(
-                new Fiber(function () use ($token, $resource, $lockTTLNs): void {
-                    $this->semaphore->lock($resource, $token, $lockTTLNs, Fiber::suspend(...));
-                }),
+                function () use ($token, $resource, $lockTTLNs, $suspender): void {
+                    $this->semaphore->lock($resource, $token, $lockTTLNs, $suspender);
+                },
                 $maxLockWaitNs,
                 $minSuspensionDelayNs,
             );
@@ -48,13 +62,13 @@ readonly class Locksmith
             try {
                 /** @var T */
                 return $this->getResultUnderTTL(
-                    new Fiber(function () use ($callback, $resource): mixed {
+                    function () use ($callback, $resource, $suspender): mixed {
                         if (!$this->semaphore->isLocked($resource)) {
                             throw new RuntimeException('Lock has been lost during process');
                         }
 
-                        return $callback(Fiber::suspend(...));
-                    }),
+                        return $callback($suspender);
+                    },
                     $lockTTLNs,
                     $minSuspensionDelayNs,
                 );
@@ -67,37 +81,44 @@ readonly class Locksmith
     /**
      * @template T
      * @throws Throwable
-     * @param Fiber<T> $fiber
+     * @param Closure(): T $task
      * @param non-negative-int $ttlNanoseconds
      * @return T
      */
-    private function getResultUnderTTL(Fiber $fiber, int $ttlNanoseconds, int $minSuspensionDelayNs): mixed
+    private function getResultUnderTTL(Closure $task, int $ttlNanoseconds, int $minSuspensionDelayNs): mixed
     {
-        $start = $this->timeProvider->getCurrentTimeNanoseconds();
+        $suspension = EventLoop::getSuspension();
 
-        $fiber->start();
+        $startTime = $this->timeProvider->getCurrentTimeNanoseconds();
 
-        while (!$fiber->isTerminated()) {
-            if ($ttlNanoseconds < ($this->timeProvider->getCurrentTimeNanoseconds() - $start)) {
-                throw new RuntimeException('Unable to get result under TTL');
+        $deferId = EventLoop::delay($minSuspensionDelayNs / 1_000_000, function () use (
+            $task,
+            $suspension,
+            $startTime,
+            $ttlNanoseconds,
+        ): void {
+            try {
+                $result = $task();
+            } catch (Throwable $e) {
+                $suspension->throw($e);
+                return;
             }
 
-            if (Fiber::getCurrent() !== null) {
-                Fiber::suspend();
-            } elseif ($minSuspensionDelayNs > 0) {
-                /** @var positive-int $delay */
-                $delay = $minSuspensionDelayNs / 1000;
-                usleep($delay);
+            // Check if TTL has been exceeded before resuming the fiber - there might have been a blocking operation in the task that caused us to exceed the TTL
+            if (($this->timeProvider->getCurrentTimeNanoseconds() - $startTime) >= $ttlNanoseconds) {
+                $suspension->throw(new RuntimeException('Unable to get result under TTL'));
+                return;
             }
+            $suspension->resume($result);
+        });
 
-            if (!$fiber->isSuspended()) {
-                throw new RuntimeException('Fiber error, fiber is not suspended nor terminated');
-            }
+        EventLoop::delay($ttlNanoseconds / 1_000_000, static function () use ($deferId, $suspension) {
+            EventLoop::cancel($deferId);
 
-            $fiber->resume();
-        }
+            $suspension->throw(new RuntimeException('Unable to get result under TTL'));
+        });
 
         /** @var T */
-        return $fiber->getReturn();
+        return $suspension->suspend();
     }
 }

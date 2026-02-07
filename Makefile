@@ -26,4 +26,4 @@ mago-format: # Run code formatting via mago.
 
 .PHONY: run-tests
 run-tests: # Run unit tests via PHPUnit.
-	docker compose run --rm php ./vendor/bin/phpunit --colors=always --configuration ./tests/phpunit.xml ./tests/Unit/
+	docker compose run --rm php ./vendor/bin/phpunit --colors=always --configuration ./tests/phpunit.xml ./tests/

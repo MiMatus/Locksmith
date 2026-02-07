@@ -62,11 +62,10 @@ class InMemorySemaphore implements SemaphoreInterface
             $higherVersion = $resource->getVersion() > $storedResource['version'];
             $maxLocksReached = $activeLocks >= $this->maxConcurrentLocks;
 
-            if ($maxLocksReached || $higherVersion) {
-                $suspension();
-            } else {
+            if (!$maxLocksReached && !$higherVersion) {
                 break;
             }
+            $suspension();
         } while (true);
 
         $resourceExpiration = $currentTime + $lockTTLNs;

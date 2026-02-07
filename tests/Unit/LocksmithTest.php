@@ -52,7 +52,6 @@ class LocksmithTest extends TestCase
                 int $lockTTLNs,
                 Closure $suspension,
             ) use (&$currentTime): void {
-                $suspension();
                 $currentTime += 500_000_001;
                 $suspension();
             });
