@@ -22,11 +22,12 @@ composer require mimatus/locksmith
 
 ## Roadmap
 - [x] Basic in-memory & Redis semaphore implementation
+- [x] Redlock algorithm for Redis semaphore
+- [x] Predis support for Redis semaphore
+- [x] AMPHP Redis client support for Redis semaphore
+- [ ] First class support and tests for Valkey/KeyDB
 - [ ] Feedback and API stabilization
 - [ ] Documentation improvements
-- [x] Redlock algorithm for Redis semaphore
-- [ ] Predis support for Redis semaphore
-- [ ] AMPHP Redis client support for Redis semaphore
 - [ ] MySQL/MariaDB/PostgreSQL semaphore implementation
 
 ## Usage
@@ -64,9 +65,10 @@ $locked(function (Closure $suspension): void {
 
 $redis = new Redis();
 $redis->connect('redis');
+$phpRedisCleint = new PhpRedisClient($redis);
 
 $semaphore = new RedisSemaphore(
-    redisClient: $redis,
+    redisClient: $phpRedisCleint,
     maxConcurrentLocks: 3, // Max concurrent locks
 );
 
@@ -97,15 +99,15 @@ $locked(function (Closure $suspension): void {
 ```php
 $semaphores = new SemaphoreCollection([
     new RedisSemaphore(
-        redisClient: $redis1,
+        redisClient: $redisClient1,
         maxConcurrentLocks: 3,
     ),
     new RedisSemaphore(
-        redisClient: $redis2,
+        redisClient: $redisClient2,
         maxConcurrentLocks: 3,
     ),
     new RedisSemaphore(
-        redisClient: $redis3,
+        redisClient: $redisClient3,
         maxConcurrentLocks: 3,
     ),
 ]);
@@ -155,7 +157,7 @@ mago-analyze: Run static analysis via mago.
 mago-format: Run code formatting via mago.
 mago-lint-fix: Run linting with auto-fix via mago.
 mago-lint: Run linting via mago.
-run-tests: Run unit tests via PHPUnit.
+run-tests: Run tests via PHPUnit.
 ```
 
 ## License

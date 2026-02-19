@@ -3,10 +3,13 @@
     "type": "library",
     "license": "MIT",
     "require": {
-        "php": ">=8.3"
+        "php": ">=8.3",
+        "revolt/event-loop": "^1.0"
     },
     "suggest": {
-        "ext-redis": "To use this library with the PHP Redis extension."
+        "ext-redis": "To use this library with the PHP Redis extension.",
+        "predis/predis": "To use this library with the Predis client.",
+        "amphp/redis": "To use this library with the AMPHP Redis client."
     },
     "autoload": {
         "psr-4": {
@@ -20,6 +23,8 @@
     },
     "require-dev": {
         "ext-redis": "*",
-        "phpunit/phpunit": "^12.5"
+        "phpunit/phpunit": "^12.5",
+        "amphp/redis": "^2.0",
+        "predis/predis": "^3.3"
     }
 }

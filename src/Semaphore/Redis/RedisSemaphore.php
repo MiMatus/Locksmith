@@ -2,21 +2,25 @@
 
 declare(strict_types=1);
 
-namespace MiMatus\Locksmith\Semaphore;
+namespace MiMatus\Locksmith\Semaphore\Redis;
 
 use Closure;
 use MiMatus\Locksmith\ResourceInterface;
+use MiMatus\Locksmith\Semaphore\Redis\RedisClientInterface;
 use MiMatus\Locksmith\SemaphoreInterface;
 use RedisException;
 use RuntimeException;
+use Throwable;
 
 readonly class RedisSemaphore implements SemaphoreInterface
 {
+    private const string RedisKeyPrefix = 'locksmith:semaphore:';
+
     /**
      * @param positive-int $maxConcurrentLocks
      */
     public function __construct(
-        public \Redis $redisClient,
+        public RedisClientInterface $redisClient,
         private int $maxConcurrentLocks = 1,
     ) {}
 
@@ -91,22 +95,21 @@ readonly class RedisSemaphore implements SemaphoreInterface
         do {
             try {
                 /** @var bool|int */
-                $result = $this->redisClient->eval(
+                $this->redisClient->eval(
                     $luaScript,
                     [
-                        $resource->getNamespace(),
-                        $token,
-                        $milisecondsTTL,
-                        $resource->getVersion(),
-                        $this->maxConcurrentLocks,
+                        self::RedisKeyPrefix . $resource->getNamespace(),
                     ],
-                    1,
+                    [
+                        $token,
+                        (string) $milisecondsTTL,
+                        (string) $resource->getVersion(),
+                        (string) $this->maxConcurrentLocks,
+                    ],
                 );
-                if ($result !== false) {
-                    break;
-                }
-
-                $errorMessage = $this->redisClient->getLastError() ?? 'Unknown error';
+                break;
+            } catch (Throwable $e) {
+                $errorMessage = $e->getMessage();
                 if (str_contains($errorMessage, 'MiMatus_VERSION_MISMATCH')) {
                     throw new RuntimeException('Lock version mismatch');
                 }
@@ -121,8 +124,6 @@ readonly class RedisSemaphore implements SemaphoreInterface
                     continue;
                 }
 
-                throw new RuntimeException(message: 'Redis Error: ' . $errorMessage);
-            } catch (RedisException $e) {
                 throw new RuntimeException(message: 'Redis Error: ' . $e->getMessage(), previous: $e);
             }
         } while (true);
@@ -158,11 +159,7 @@ readonly class RedisSemaphore implements SemaphoreInterface
         LUA;
 
         try {
-            /** @var bool|int */
-            $result = $this->redisClient->eval($luaScript, [$resource->getNamespace(), $token], 1);
-            if ($result === false) {
-                throw new RuntimeException('Redis Error: ' . ($this->redisClient->getLastError() ?? 'Unknown error'));
-            }
+            $this->redisClient->eval($luaScript, [self::RedisKeyPrefix . $resource->getNamespace()], [$token]);
         } catch (RedisException $e) {
             throw new RuntimeException(message: 'Redis Error: ' . $e->getMessage(), previous: $e);
         }
@@ -175,14 +172,9 @@ readonly class RedisSemaphore implements SemaphoreInterface
     public function isLocked(ResourceInterface $resource): bool
     {
         try {
-            /** @var bool|int */
-            $exists = $this->redisClient->exists($resource->getNamespace());
+            return $this->redisClient->exists(self::RedisKeyPrefix . $resource->getNamespace());
         } catch (RedisException $e) {
             throw new RuntimeException(message: 'Redis Error: ' . $e->getMessage(), previous: $e);
         }
-        if ($exists === false) {
-            throw new RuntimeException('Redis Error: ' . ($this->redisClient->getLastError() ?? 'Unknown error'));
-        }
-        return $exists === 1;
     }
 }

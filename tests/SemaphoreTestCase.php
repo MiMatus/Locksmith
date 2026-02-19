@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace MiMatus\Locksmith\Tests\Unit;
+namespace MiMatus\Locksmith\Tests;
 
 use Exception;
-use Fiber;
 use MiMatus\Locksmith\Resource;
 use MiMatus\Locksmith\Semaphore\TimeProvider;
 use MiMatus\Locksmith\SemaphoreInterface;
@@ -17,9 +16,9 @@ use Throwable;
 
 abstract class SemaphoreTestCase extends TestCase
 {
-    private TimeProvider&Stub $timeProvider;
+    protected TimeProvider&Stub $timeProvider;
 
-    private int $currentTime = 0;
+    protected int $currentTime = 0;
 
     /**
      * @throws Exception
@@ -106,19 +105,20 @@ abstract class SemaphoreTestCase extends TestCase
             self::fail('Suspension should not be called when lock is available');
         });
 
-        $called = false;
-        $fiber = new Fiber(static function () use ($semaphore, $resource, &$called): void {
-            $semaphore->lock($resource, 'test-lock-token-2', 5_000_000_000, static function () use (&$called): void {
-                $called = true;
-                Fiber::suspend();
-            });
-        });
+        $isSuspended = static function () use ($resource, $semaphore): bool {
+            try {
+                $semaphore->lock($resource, 'test-lock-token-2', 5_000_000_000, static function () use (
+                    &$called,
+                ): void {
+                    throw new RuntimeException('SUSPENSION_CALLED');
+                });
+            } catch (Throwable $e) {
+                return $e->getMessage() === 'SUSPENSION_CALLED' ? true : throw $e;
+            }
+            return false;
+        };
 
-        $fiber->start();
-
-        self::assertTrue($called);
-        self::assertTrue($fiber->isSuspended());
-        self::assertFalse($fiber->isTerminated());
+        self::assertTrue($isSuspended());
 
         self::assertTrue($semaphore->isLocked($resource), 'Lock should be held');
 
@@ -126,7 +126,7 @@ abstract class SemaphoreTestCase extends TestCase
 
         self::assertFalse($semaphore->isLocked($resource), 'Lock should be released after unlock');
 
-        $fiber->resume();
+        self::assertFalse($isSuspended());
 
         self::assertTrue($semaphore->isLocked($resource), 'Lock should be held');
         $semaphore->unlock($resource, 'test-lock-token-2');
@@ -148,19 +148,20 @@ abstract class SemaphoreTestCase extends TestCase
             self::fail('Suspension should not be called when lock is available');
         });
 
-        $called = false;
-        $fiber = new Fiber(static function () use ($semaphore, $resource2, &$called): void {
-            $semaphore->lock($resource2, 'test-lock-token-2', 5_000_000_000, static function () use (&$called): void {
-                $called = true;
-                Fiber::suspend();
-            });
-        });
+        $isSuspended = static function () use ($resource2, $semaphore): bool {
+            try {
+                $semaphore->lock($resource2, 'test-lock-token-2', 5_000_000_000, static function () use (
+                    &$called,
+                ): void {
+                    throw new RuntimeException('SUSPENSION_CALLED');
+                });
+            } catch (Throwable $e) {
+                return $e->getMessage() === 'SUSPENSION_CALLED' ? true : throw $e;
+            }
+            return false;
+        };
 
-        $fiber->start();
-
-        self::assertTrue($called);
-        self::assertTrue($fiber->isSuspended());
-        self::assertFalse($fiber->isTerminated());
+        self::assertTrue($isSuspended());
 
         self::assertTrue($semaphore->isLocked($resource1), 'Lock should be held');
 
@@ -168,7 +169,7 @@ abstract class SemaphoreTestCase extends TestCase
 
         self::assertFalse($semaphore->isLocked($resource1), 'Lock should be released after unlock');
 
-        $fiber->resume();
+        self::assertFalse($isSuspended());
 
         self::assertTrue($semaphore->isLocked($resource2), 'Lock should be held');
         $semaphore->unlock($resource2, 'test-lock-token-2');
@@ -193,19 +194,20 @@ abstract class SemaphoreTestCase extends TestCase
             self::fail('Suspension should not be called when lock is available');
         });
 
-        $called = false;
-        $fiber = new Fiber(static function () use ($semaphore, $resource, &$called): void {
-            $semaphore->lock($resource, 'test-lock-token-3', 5_000_000_000, static function () use (&$called): void {
-                $called = true;
-                Fiber::suspend();
-            });
-        });
+        $isSuspended = static function () use ($resource, $semaphore): bool {
+            try {
+                $semaphore->lock($resource, 'test-lock-token-3', 5_000_000_000, static function () use (
+                    &$called,
+                ): void {
+                    throw new RuntimeException('SUSPENSION_CALLED');
+                });
+            } catch (Throwable $e) {
+                return $e->getMessage() === 'SUSPENSION_CALLED' ? true : throw $e;
+            }
+            return false;
+        };
 
-        $fiber->start();
-
-        self::assertTrue($called);
-        self::assertTrue($fiber->isSuspended());
-        self::assertFalse($fiber->isTerminated());
+        self::assertTrue($isSuspended());
 
         self::assertTrue($semaphore->isLocked($resource), 'Lock should be held');
 
