@@ -3,8 +3,7 @@
     "type": "library",
     "license": "MIT",
     "require": {
-        "php": ">=8.3",
-        "revolt/event-loop": "^1.0"
+        "php": ">=8.3"
     },
     "suggest": {
         "ext-redis": "To use this library with the PHP Redis extension.",
@@ -25,6 +24,7 @@
         "ext-redis": "*",
         "phpunit/phpunit": "^12.5",
         "amphp/redis": "^2.0",
-        "predis/predis": "^3.3"
+        "predis/predis": "^3.3",
+        "revolt/event-loop": "^1.0"
     }
 }

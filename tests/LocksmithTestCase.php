@@ -1,0 +1,320 @@
+<?php
+
+declare(strict_types=1);
+
+namespace MiMatus\Locksmith\Tests;
+
+use Closure;
+use Exception;
+use MiMatus\Locksmith\Locksmith;
+use MiMatus\Locksmith\Resource;
+use MiMatus\Locksmith\Semaphore\TimeProvider;
+use MiMatus\Locksmith\SemaphoreInterface;
+use MiMatus\Locksmith\TaskExecutorInterface;
+use Override;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+use Random\Engine;
+use RuntimeException;
+
+abstract class LocksmithTestCase extends TestCase
+{
+    private SemaphoreInterface&MockObject $semaphore;
+    private TimeProvider&MockObject $timeProvider;
+    private Engine&MockObject $randomEngine;
+    private TaskExecutorInterface $taskExecutor;
+
+    /**
+     * @throws Exception
+     */
+    #[Override]
+    protected function setUp(): void
+    {
+        $this->semaphore = $this->createMock(SemaphoreInterface::class);
+        $this->timeProvider = $this->createMock(TimeProvider::class);
+        $this->randomEngine = $this->createMock(Engine::class);
+        $this->taskExecutor = $this->createTaskExecutor($this->timeProvider);
+    }
+
+    abstract protected function createTaskExecutor(TimeProvider $timeProvider): TaskExecutorInterface;
+
+    public function testUnableToAcquireLockTimeout(): void
+    {
+        $currentTime = 0;
+        $this->timeProvider
+            ->expects($this->atLeastOnce())
+            ->method('getCurrentTimeNanoseconds')
+            ->willReturnCallback(static function () use (&$currentTime) {
+                return $currentTime;
+            });
+
+        $this->semaphore
+            ->expects($this->atLeastOnce())
+            ->method('lock')
+            ->willReturnCallback(static function (
+                Resource $resource,
+                #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
+                Closure $suspension,
+            ) use (&$currentTime): void {
+                $currentTime += 500_000_001;
+                $suspension();
+            });
+
+        $this->randomEngine
+            ->expects($this->once())
+            ->method('generate')
+            ->willReturn('token');
+
+        $locksmith = new Locksmith(
+            semaphore: $this->semaphore,
+            timeProvider: $this->timeProvider,
+            randomEngine: $this->randomEngine,
+            taskExecutor: $this->taskExecutor,
+        );
+
+        $locked = $locksmith->locked(
+            resource: new Resource(namespace: 'test-resource', version: 1),
+            lockTTLNs: 1_000_000_000,
+            maxLockWaitNs: 500_000_000,
+            minSuspensionDelayNs: 10_000,
+        );
+
+        $this->expectExceptionObject(new RuntimeException('Unable to get result under TTL'));
+        $locked(static function (): void {
+            self::fail('Lock should not be acquired');
+        });
+    }
+
+    public function testUnableToAcquireLock(): void
+    {
+        $currentTime = 0;
+        $this->timeProvider
+            ->expects($this->atLeastOnce())
+            ->method('getCurrentTimeNanoseconds')
+            ->willReturnCallback(static function () use (&$currentTime) {
+                return $currentTime;
+            });
+
+        $this->semaphore
+            ->expects($this->atLeastOnce())
+            ->method('lock')
+            ->willReturnCallback(static function (
+                Resource $resource,
+                #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
+                Closure $suspension,
+            ) use (&$currentTime): void {
+                throw new RuntimeException('error');
+            });
+        $this->randomEngine
+            ->expects($this->once())
+            ->method('generate')
+            ->willReturn('token');
+
+        $locksmith = new Locksmith(
+            semaphore: $this->semaphore,
+            timeProvider: $this->timeProvider,
+            randomEngine: $this->randomEngine,
+            taskExecutor: $this->taskExecutor,
+        );
+
+        $locked = $locksmith->locked(
+            resource: new Resource(namespace: 'test-resource', version: 1),
+            lockTTLNs: 1_000_000_000,
+            maxLockWaitNs: 500_000_000,
+            minSuspensionDelayNs: 10_000,
+        );
+
+        $this->expectExceptionObject(new RuntimeException('error'));
+        $locked(static function (): void {
+            self::fail('Lock should not be acquired');
+        });
+    }
+
+    public function testLostDuringExecution(): void
+    {
+        $resource = new Resource(namespace: 'test-resource', version: 1);
+
+        $currentTime = 0;
+        $this->timeProvider
+            ->expects($this->atLeastOnce())
+            ->method('getCurrentTimeNanoseconds')
+            ->willReturnCallback(static function () use (&$currentTime) {
+                return $currentTime;
+            });
+
+        $this->semaphore
+            ->expects($this->once())
+            ->method('lock')
+            ->willReturnCallback(static function (
+                Resource $resource,
+                #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
+                Closure $suspension,
+            ) use (&$currentTime): void {
+                // Lock acquired immediately
+            });
+
+        $this->semaphore
+            ->expects($this->once())
+            ->method('isLocked')
+            ->with(self::equalTo($resource))
+            ->willReturn(false);
+
+        $this->randomEngine
+            ->expects($this->once())
+            ->method('generate')
+            ->willReturn('token');
+
+        $locksmith = new Locksmith(
+            semaphore: $this->semaphore,
+            timeProvider: $this->timeProvider,
+            randomEngine: $this->randomEngine,
+            taskExecutor: $this->taskExecutor,
+        );
+
+        $locked = $locksmith->locked(
+            resource: $resource,
+            lockTTLNs: 1_000_000_000,
+            maxLockWaitNs: 500_000_000,
+            minSuspensionDelayNs: 10_000,
+        );
+
+        $this->expectExceptionObject(new RuntimeException('Lock has been lost during process'));
+        $locked(static function (Closure $suspension): void {
+            $suspension(); // Simulate some processing and force lock check
+        });
+    }
+
+    public function testUnableToUnlock(): void
+    {
+        $resource = new Resource(namespace: 'test-resource', version: 1);
+
+        $currentTime = 0;
+        $this->timeProvider
+            ->expects($this->atLeastOnce())
+            ->method('getCurrentTimeNanoseconds')
+            ->willReturnCallback(static function () use (&$currentTime) {
+                return $currentTime;
+            });
+
+        $this->semaphore
+            ->expects($this->once())
+            ->method('lock')
+            ->willReturnCallback(static function (
+                Resource $resource,
+                #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
+                Closure $suspension,
+            ) use (&$currentTime): void {
+                // Lock acquired immediately
+            });
+
+        $this->semaphore
+            ->expects($this->once())
+            ->method('unlock')
+            ->willReturnCallback(static function (Resource $resource, #[\SensitiveParameter] string $token) use (
+                &$currentTime,
+            ): void {
+                throw new RuntimeException('error during unlock');
+            });
+
+        $this->semaphore
+            ->expects($this->once())
+            ->method('isLocked')
+            ->with(self::equalTo($resource))
+            ->willReturn(false);
+
+        $this->randomEngine
+            ->expects($this->once())
+            ->method('generate')
+            ->willReturn('token');
+
+        $locksmith = new Locksmith(
+            semaphore: $this->semaphore,
+            timeProvider: $this->timeProvider,
+            randomEngine: $this->randomEngine,
+            taskExecutor: $this->taskExecutor,
+        );
+
+        $locked = $locksmith->locked(
+            resource: $resource,
+            lockTTLNs: 1_000_000_000,
+            maxLockWaitNs: 500_000_000,
+            minSuspensionDelayNs: 10_000,
+        );
+
+        $this->expectExceptionObject(new RuntimeException('error during unlock'));
+        $locked(static function (Closure $suspension): void {
+            // Simulate some processing
+        });
+    }
+
+    public function testLocked(): void
+    {
+        $resource = new Resource(namespace: 'test-resource', version: 1);
+
+        $currentTime = 0;
+        $this->timeProvider
+            ->expects($this->atLeastOnce())
+            ->method('getCurrentTimeNanoseconds')
+            ->willReturnCallback(static function () use (&$currentTime) {
+                return $currentTime;
+            });
+
+        $this->semaphore
+            ->expects($this->once())
+            ->method('lock')
+            ->willReturnCallback(static function (
+                Resource $resource,
+                #[\SensitiveParameter] string $token,
+                int $lockTTLNs,
+                Closure $suspension,
+            ) use (&$currentTime): void {
+                // Lock acquired immediately
+            });
+
+        $this->semaphore
+            ->expects($this->once())
+            ->method('unlock')
+            ->willReturnCallback(static function (Resource $resource, #[\SensitiveParameter] string $token) use (
+                &$currentTime,
+            ): void {
+                // Unlock successful
+            });
+
+        $this->semaphore
+            ->expects($this->once())
+            ->method('isLocked')
+            ->with(self::equalTo($resource))
+            ->willReturn(true);
+
+        $this->randomEngine
+            ->expects($this->once())
+            ->method('generate')
+            ->willReturn('token');
+
+        $locksmith = new Locksmith(
+            semaphore: $this->semaphore,
+            timeProvider: $this->timeProvider,
+            randomEngine: $this->randomEngine,
+            taskExecutor: $this->taskExecutor,
+        );
+
+        $locked = $locksmith->locked(
+            resource: $resource,
+            lockTTLNs: 1_000_000_000,
+            maxLockWaitNs: 500_000_000,
+            minSuspensionDelayNs: 10_000,
+        );
+
+        $called = false;
+        $locked(static function (Closure $suspension) use (&$called): void {
+            // Simulate some processing
+            $called = true;
+        });
+
+        self::assertTrue($called, 'Locked callback executed');
+    }
+}
