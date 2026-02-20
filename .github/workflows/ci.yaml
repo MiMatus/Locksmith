@@ -11,6 +11,7 @@ jobs:
     strategy:
       matrix:
         php-version: ["8.3", "8.4", "8.5"]
+        redis-image: ["redis:7-alpine", "redis:8-alpine", "valkey/valkey:9-alpine"]
 
     steps:
       - name: Checkout code
@@ -18,7 +19,7 @@ jobs:
 
       - name: Build and Start Services
         # Pass the matrix value as an environment variable to Docker Compose
-        run: PHP_VERSION=${{ matrix.php-version }} docker compose up redis -d --build
+        run: PHP_VERSION=${{ matrix.php-version }} REDIS_IMAGE=${{ matrix.redis-image }} docker compose up redis -d --build
 
       - name: Unit Tests
         run: |
@@ -26,4 +27,4 @@ jobs:
 
       - name: Stop Services
         if: always()
-        run: PHP_VERSION=${{ matrix.php-version }} docker compose down
+        run: PHP_VERSION=${{ matrix.php-version }} REDIS_IMAGE=${{ matrix.redis-image }} docker compose down

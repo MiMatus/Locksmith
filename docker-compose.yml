@@ -12,6 +12,6 @@ services:
       REDIS_HOST: redis
 
   redis:
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE:-redis:7-alpine} #TODO ADD apache/kvrocks:2.12.1 Failed to connect to redis instance / does not even work with docker run -it --rm redis redis-cli -p 6666 / docker.dragonflydb.io/dragonflydb/dragonfly ERR unknown command `HPEXPIRE`-> they have HSETEX
     ports:
       - "6379:6379"

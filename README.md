@@ -25,7 +25,7 @@ composer require mimatus/locksmith
 - [x] Redlock algorithm for Redis semaphore
 - [x] Predis support for Redis semaphore
 - [x] AMPHP Redis client support for Redis semaphore
-- [ ] First class support and tests for Valkey/KeyDB
+- [x] First class support and tests for Redis 7 | Redis 8 | Valkey 9
 - [ ] Feedback and API stabilization
 - [ ] Documentation improvements
 - [ ] MySQL/MariaDB/PostgreSQL semaphore implementation
