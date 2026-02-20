@@ -159,15 +159,9 @@ class DistributedSemaphoreTest extends TestCase
         $semaphore = self::createStub(SemaphoreInterface::class);
         $timeProvider = self::createStub(TimeProvider::class);
         $currentTime = 0;
-
-        $distributedSemaphore = new DistributedSemaphore(
-            semaphores: new SemaphoreCollection([$semaphore, $semaphore, $semaphore, $semaphore, $semaphore]),
-            quorum: 3,
-            timeProvider: $timeProvider,
-        );
-
         $lockAttempt = 0;
         $locksAquired = 0;
+
         $semaphore
             ->method('lock')
             ->willReturnCallback(static function (
@@ -195,6 +189,18 @@ class DistributedSemaphoreTest extends TestCase
             ->willReturnCallback(static function () use (&$currentTime): int {
                 return $currentTime;
             });
+
+        $distributedSemaphore = new DistributedSemaphore(
+            semaphores: new SemaphoreCollection([
+                clone $semaphore,
+                clone $semaphore,
+                clone $semaphore,
+                clone $semaphore,
+                clone $semaphore,
+            ]),
+            quorum: 3,
+            timeProvider: $timeProvider,
+        );
 
         $distributedSemaphore->lock(
             resource: new Resource(namespace: 'test-resource'),

@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace MiMatus\Locksmith\Semaphore\Redis;
 
+use Redis;
+use RedisCluster;
+use RedisSentinel;
 use RuntimeException;
 
 class PhpRedisClient implements RedisClientInterface
 {
     public function __construct(
-        private \Redis $redis,
+        private Redis|RedisCluster $redis,
     ) {}
 
     /**
@@ -22,13 +25,14 @@ class PhpRedisClient implements RedisClientInterface
     {
         try {
             /** @var mixed */
-            $result = $this->redis->eval($script, [...$keys, ...$args], count($keys));
+            $result = $this->redis->eval($script, [...$keys, ...$args], count($keys)); // @mago-ignore analysis:invalid-method-access RedisCluster
         } catch (\RedisException $e) {
             throw new RuntimeException('Redis eval failed: ' . $e->getMessage(), 0, $e);
         }
 
         if ($result === false) {
-            $errorMessage = $this->redis->getLastError() ?? 'Unknown error';
+            /** @var string */
+            $errorMessage = $this->redis->getLastError() ?? 'Unknown error'; // @mago-ignore analysis:invalid-method-access RedisCluster
             throw new RuntimeException('Redis eval failed: ' . $errorMessage);
         }
         return $result;
@@ -41,7 +45,7 @@ class PhpRedisClient implements RedisClientInterface
     public function exists(string $key): bool
     {
         try {
-            return $this->redis->exists($key) > 0;
+            return (bool) $this->redis->exists($key); // @mago-ignore analysis:invalid-method-access RedisCluster
         } catch (\RedisException $e) {
             throw new RuntimeException('Redis exists check failed: ' . $e->getMessage(), 0, $e);
         }
