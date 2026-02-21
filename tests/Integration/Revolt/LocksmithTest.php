@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace MiMatus\Locksmith\Tests\Unit;
+namespace MiMatus\Locksmith\Tests\Integration\Revolt;
 
-use MiMatus\Locksmith\FiberTaskExecutor;
+use MiMatus\Locksmith\RevoltTaskExecutor;
 use MiMatus\Locksmith\Semaphore\TimeProvider;
 use MiMatus\Locksmith\TaskExecutorInterface;
 use MiMatus\Locksmith\Tests\LocksmithTestCase;
@@ -13,6 +13,6 @@ class LocksmithTest extends LocksmithTestCase
 {
     protected function createTaskExecutor(TimeProvider $timeProvider): TaskExecutorInterface
     {
-        return new FiberTaskExecutor($timeProvider);
+        return new RevoltTaskExecutor($timeProvider);
     }
 }
