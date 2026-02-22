@@ -1,0 +1,123 @@
+#https://oneuptime.com/blog/post/2026-02-08-how-to-set-up-redis-cluster-mode-in-docker/view
+networks:
+  redis-cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+services:
+  redis-node-1:
+    image: redis:7-alpine
+    container_name: redis-node-1
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --port 6379
+    networks:
+      redis-cluster:
+        ipv4_address: 172.30.0.11
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis-node-2:
+    image: redis:7-alpine
+    container_name: redis-node-2
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --port 6379
+    networks:
+      redis-cluster:
+        ipv4_address: 172.30.0.12
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis-node-3:
+    image: redis:7-alpine
+    container_name: redis-node-3
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --port 6379
+    networks:
+      redis-cluster:
+        ipv4_address: 172.30.0.13
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis-node-4:
+    image: redis:7-alpine
+    container_name: redis-node-4
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --port 6379
+    networks:
+      redis-cluster:
+        ipv4_address: 172.30.0.14
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis-node-5:
+    image: redis:7-alpine
+    container_name: redis-node-5
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --port 6379
+    networks:
+      redis-cluster:
+        ipv4_address: 172.30.0.15
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis-node-6:
+    image: redis:7-alpine
+    container_name: redis-node-6
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --port 6379
+    networks:
+      redis-cluster:
+        ipv4_address: 172.30.0.16
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+  redis-cluster-creator:
+    image: redis:7-alpine
+    networks:
+      - redis-cluster
+    volumes:
+      - ./create.sh:/tmp/create.sh
+    command: redis-cli --cluster create  172.30.0.11:6379 172.30.0.12:6379 172.30.0.13:6379 172.30.0.14:6379 172.30.0.15:6379 172.30.0.16:6379 --cluster-replicas 1 --cluster-yes
+    depends_on:
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+      - redis-node-4
+      - redis-node-5
+      - redis-node-6
+  php:
+    image: php-test
+    build:
+      context: '.'
+      dockerfile: php.Dockerfile
+      args:
+          - PHP_VERSION=${PHP_VERSION:-8.3}
+    networks:
+      - redis-cluster
+    environment:
+      REDIS_HOST: redis

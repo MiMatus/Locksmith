@@ -14,6 +14,7 @@ use Traversable;
  */
 interface SemaphoreCollectionInterface extends IteratorAggregate, Countable
 {
+
     public function without(SemaphoreInterface $semaphore): static;
 
     /**
