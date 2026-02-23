@@ -25,14 +25,25 @@ composer require mimatus/locksmith
 - [x] Redlock algorithm for Redis semaphore
 - [x] Predis support for Redis semaphore
 - [x] AMPHP Redis client support for Redis semaphore
-- [ ] First class support and tests for Valkey/KeyDB
+- [x] First class support and tests for Redis 7 | Redis 8 | Valkey 9
 - [ ] Feedback and API stabilization
+- [ ] Redis Cluster support
 - [ ] Documentation improvements
 - [ ] MySQL/MariaDB/PostgreSQL semaphore implementation
 
 ## Usage
 
+> [!NOTE]
+> Project is still in early stages of development, so API is not stable yet and may change. Feedback is very welcome to help shape the API and make it more intuitive and easy to use.
+
 ### In-Memory semaphore
+
+For single-process scenarios you can use in-memory semaphore implementation. It allows to limit concurrent access to resource within single process (e.g., number of concurrent HTTP requests, background jobs, or other tasks). 
+
+It's suitable mainly for concurrent PHP - AMPHP, Swoole, ReactPHP, etc.
+
+It's not suitable for multi-process scenarios (e.g., multiple PHP-FPM workers, multiple servers) as each process/server will have its own instance of in-memory semaphore. For multi-process scenarios you should use Redis-based semaphore implementation.
+
 ```php
 
 $locksmith = new Locksmith(
@@ -61,6 +72,18 @@ $locked(function (Closure $suspension): void {
 ```
 
 ### Redis semaphore
+
+For distributed scenarios you can use Redis-based semaphore implementation. 
+
+Supported Redis servers:
+- Redis 7+
+- Valkey 9+
+
+Supported Redis clients:
+- PhpRedis
+- Predis
+- AMPHP Redis client
+
 ```php
 
 $redis = new Redis();
@@ -96,6 +119,13 @@ $locked(function (Closure $suspension): void {
 ```
 
 ### Distributed semaphore
+Distributed semaphore allows to use multiple semaphore instances (e.g., multiple Redis instances) to achieve higher availability and fault tolerance. It uses quorum-based approach - single lock is successful only if the defined quorum of semaphores is reached.
+
+Implementation of distributed semaphore is based on [Redlock algorithm](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/#the-redlock-algorithm) with some adjustments to fit the `Semaphore` interface and allow cooperative suspension points.
+
+> [!NOTE] 
+> It's important to note that while distributed semaphore can be used Redis instances, it does not have first class support for Redis Cluster or Sentinel. First class support for Redis Cluster is on the roadmap, but in the meantime you can use distributed semaphore with multiple independent Redis instances as a workaround.
+
 ```php
 $semaphores = new SemaphoreCollection([
     new RedisSemaphore(
@@ -120,7 +150,7 @@ $locksmith = new Locksmith(
 );
 $resource = new Resource(
     namespace: 'test-resource', // Namespace/identifier for resource
-    version: 1, // Optional resouce version
+    version: 1, // Optional resource version
 );
 $locked = $locksmith->locked(
     $resource, 

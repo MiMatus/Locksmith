@@ -38,11 +38,15 @@ class SemaphoreCollection implements SemaphoreCollectionInterface
     }
 
     /**
-     * @return T
+     * @return ?T
      */
     #[\Override]
-    public function getRandom(): SemaphoreInterface
+    public function getRandom(): ?SemaphoreInterface
     {
+        if ($this->semaphores === []) {
+            return null;
+        }
+
         /** @var int */
         $key = $this->randomizer->pickArrayKeys($this->semaphores, 1)[0];
         return $this->semaphores[$key];

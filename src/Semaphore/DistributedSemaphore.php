@@ -47,9 +47,9 @@ readonly class DistributedSemaphore implements SemaphoreInterface
         $semaphores = clone $this->semaphores;
 
         do {
-            $semaphore = $this->semaphores->getRandom();
+            $semaphore = $semaphores->getRandom();
             $lockTTLNs -= $this->timeProvider->getCurrentTimeNanoseconds() - $startTime;
-            if ($lockTTLNs <= 0) {
+            if ($lockTTLNs <= 0 || $semaphore === null) {
                 break;
             }
 

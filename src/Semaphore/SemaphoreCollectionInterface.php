@@ -17,9 +17,9 @@ interface SemaphoreCollectionInterface extends IteratorAggregate, Countable
     public function without(SemaphoreInterface $semaphore): static;
 
     /**
-     * @return T
+     * @return ?T
      */
-    public function getRandom(): SemaphoreInterface;
+    public function getRandom(): ?SemaphoreInterface;
 
     /**
      * @return Traversable<T>
